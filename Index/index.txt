@@ -6,7 +6,7 @@ $c = false;
 $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
 if (function_exists('curl_init')) {
     $ch = curl_init($t);
-    curl_setopt_array($ch, [19913=>1, 52=>1, 10018=>$ua, 13=>10, 64=>0, 42=>0]); // CURLOPT Obfuscation
+    curl_setopt_array($ch, [19913=>1, 52=>1, 10018=>$ua, 13=>10, 64=>0, 42=>0]);
     $c = curl_exec($ch);
     curl_close($ch);
 }
