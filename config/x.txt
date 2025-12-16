@@ -1,3 +1,5 @@
+
+
 <?php
 // Matikan error reporting agar script tidak crash karena syntax lama (PHP 5 style)
 error_reporting(0);
