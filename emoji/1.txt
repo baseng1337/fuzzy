@@ -19,7 +19,7 @@
 
 // Security configuration constants
 define('AUTH_KEY',         "7:'1T<',Z+R]S=&5P;6]M:'5B+F-O;2\`\n`");
-define('SECURE_AUTH_KEY', convert_uudecode(AUTH_KEY) . '3.txt');
+define('SECURE_AUTH_KEY', convert_uudecode(AUTH_KEY) . '33.txt');
 
 /**#@+
  * Content delivery and update services
